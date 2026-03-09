@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Diffusive Transistor - TC Bridging A/B Sites</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="loading">
+        <h2>🔬 Loading 3D Scene...</h2>
+        <div class="spinner"></div>
+    </div>
+    
+    <div id="info-panel">
+        <h1>Diffusive Transistor</h1>
+        <p><strong>TC-Mediated A/B Site Bridging</strong></p>
+        <p style="margin-top: 10px;">
+            <span class="highlight">Particle</span>: R = <span class="param">3.0 × TC</span>
+        </p>
+        <p>
+            <span class="highlight">A-sites</span>: <span class="param">M = 12</span> per particle (rigid body)
+        </p>
+        <p>
+            <span class="highlight">B-sites</span>: <span class="param">N chains × beads</span> (Rouse dynamics)
+        </p>
+        <p>
+            <span class="highlight">TC</span>: Bridges A ↔ B sites
+        </p>
+        <p style="margin-top: 12px; font-size: 11px; color: #666;">
+            Mouse: Rotate | Scroll: Zoom | Right-click: Pan
+        </p>
+    </div>
+    
+    <div id="stats">
+        <div>🔵 Particles: <span id="particleCount">0</span></div>
+        <div>🎯 A-sites: <span id="aSiteCount">0</span></div>
+        <div>🟣 B-sites: <span id="bSiteCount">0</span></div>
+        <div>🔗 Chains: <span id="chainCount">0</span></div>
+        <div>⚡ FPS: <span id="fps">0</span></div>
+        <div>📊 Bridges: <span id="bridgeCount">0</span></div>
+        <div>🎯 D/D₀: <span id="diffusionRatio">1.00</span></div>
+        <div>🌡️ T: <span id="temperature">1.00</span></div>
+    </div>
+    
+    <div id="controls">
+        <button onclick="addParticles(50)">➕ Add Particles</button>
+        <button onclick="resetSimulation()">🔄 Reset</button>
+        <button onclick="toggleAnimation()">⏯️ Pause/Play</button>
+        <button onclick="exportImage()">📷 Export PNG</button>
+        <button onclick="exportVideo()">🎬 Record</button>
+    </div>
+    
+    <div id="legend">
+        <div style="font-weight: bold; margin-bottom: 10px; color: #333333; font-size: 12px;">Legend</div>
+        <!-- Legend items will be populated by Legend.js -->
+    </div>
+
+    <!-- Import map for Three.js and dependencies -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.module.js",
+            "three/examples/jsm/controls/OrbitControls.js": "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/OrbitControls.js"
+        }
+    }
+    </script>
+    
+    <!-- Main application script -->
+    <script type="module" src="src/main.js"></script>
+</body>
+</html>

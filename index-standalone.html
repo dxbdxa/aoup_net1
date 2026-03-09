@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Diffusive Transistor - TC Bridging A/B Sites</title>
+    <link rel="stylesheet" href="styles/main.css">
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="loading">
+        <h2>🔬 Loading 3D Scene...</h2>
+        <div class="spinner"></div>
+    </div>
+    
+    <div id="info-panel">
+        <h1>Diffusive Transistor</h1>
+        <p><strong>TC-Mediated A/B Site Bridging</strong></p>
+        <p style="margin-top: 10px;">
+            <span class="highlight">Particle</span>: R = <span class="param">3.0 × TC</span>
+        </p>
+        <p>
+            <span class="highlight">A-sites</span>: <span class="param">M = 12</span> per particle (rigid body)
+        </p>
+        <p>
+            <span class="highlight">B-sites</span>: <span class="param">N chains × beads</span> (Rouse dynamics)
+        </p>
+        <p>
+            <span class="highlight">TC</span>: Bridges A ↔ B sites
+        </p>
+        <p style="margin-top: 12px; font-size: 11px; color: #666;">
+            Mouse: Rotate | Scroll: Zoom | Right-click: Pan
+        </p>
+    </div>
+    
+    <div id="stats">
+        <div>🔵 Particles: <span id="particleCount">0</span></div>
+        <div>🎯 A-sites: <span id="aSiteCount">0</span></div>
+        <div>🟣 B-sites: <span id="bSiteCount">0</span></div>
+        <div>🔗 Chains: <span id="chainCount">0</span></div>
+        <div>⚡ FPS: <span id="fps">0</span></div>
+        <div>📊 Bridges: <span id="bridgeCount">0</span></div>
+        <div>🎯 D/D₀: <span id="diffusionRatio">1.00</span></div>
+    </div>
+    
+    <div id="controls">
+        <button id="btn-add">➕ Add Particles</button>
+        <button id="btn-reset">🔄 Reset</button>
+        <button id="btn-pause">⏯️ Pause/Play</button>
+        <button id="btn-export">📷 Export PNG</button>
+        <button id="btn-video">🎬 Record</button>
+    </div>
+    
+    <div id="legend">
+        <div style="font-weight: bold; margin-bottom: 10px; color: #333333; font-size: 12px;">Legend</div>
+        <!-- Legend items will be populated by Legend.js -->
+    </div>
+
+    <!-- Three.js from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <!-- Utils -->
+    <script src="src/utils/Constants.js"></script>
+    <script src="src/utils/Colors.js"></script>
+    <script src="src/utils/Helpers.js"></script>
+    
+    <!-- Physics -->
+    <script src="src/physics/BrownianMotion.js"></script>
+    <script src="src/physics/RouseDynamics.js"></script>
+    
+    <!-- Objects -->
+    <script src="src/objects/Particle.js"></script>
+    <script src="src/objects/TCMolecule.js"></script>
+    <script src="src/objects/Network.js"></script>
+    <script src="src/objects/Bridge.js"></script>
+    <script src="src/objects/Boundary.js"></script>
+    
+    <!-- Core -->
+    <script src="src/core/Scene.js"></script>
+    <script src="src/core/Camera.js"></script>
+    <script src="src/core/Renderer.js"></script>
+    <script src="src/core/Controls.js"></script>
+    
+    <!-- UI -->
+    <script src="src/ui/InfoPanel.js"></script>
+    <script src="src/ui/StatsPanel.js"></script>
+    <script src="src/ui/ControlsPanel.js"></script>
+    <script src="src/ui/Legend.js"></script>
+    
+    <!-- Main Simulation -->
+    <script src="src/Simulation.js"></script>
+    
+    <!-- App Entry -->
+    <script>
+        // Global simulation instance
+        let simulation = null;
+        
+        // Initialize when DOM is ready
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('🔬 Initializing Diffusive Transistor Simulation...');
+            
+            try {
+                simulation = new Simulation();
+                simulation.init();
+                console.log('✅ Simulation started successfully');
+            } catch (error) {
+                console.error('❌ Failed to initialize simulation:', error);
+                
+                const loadingElement = document.getElementById('loading');
+                if (loadingElement) {
+                    loadingElement.innerHTML = `
+                        <h2>❌ Initialization Error</h2>
+                        <p style="color: #d62728; margin-top: 10px;">${error.message}</p>
+                        <p style="margin-top: 10px; font-size: 11px; color: #666;">
+                            Check browser console for details
+                        </p>
+                    `;
+                }
+            }
+        });
+        
+        // Button event handlers
+        document.getElementById('btn-add').addEventListener('click', () => {
+            if (simulation) simulation.addParticles(50);
+        });
+        
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            if (simulation) simulation.reset();
+        });
+        
+        document.getElementById('btn-pause').addEventListener('click', () => {
+            if (simulation) simulation.toggleAnimation();
+        });
+        
+        document.getElementById('btn-export').addEventListener('click', () => {
+            if (simulation) simulation.exportImage();
+        });
+        
+        document.getElementById('btn-video').addEventListener('click', () => {
+            if (simulation) simulation.exportVideo();
+        });
+    </script>
+</body>
+</html>

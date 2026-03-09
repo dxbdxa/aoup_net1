@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Diffusive Transistor - TC Bridging A/B Sites</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Arial', sans-serif; overflow: hidden; background: #ffffff; color: #333; }
+        #canvas-container { width: 100vw; height: 100vh; position: relative; }
+        #info-panel { position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.95); padding: 20px; border: 2px solid #333; max-width: 360px; z-index: 100; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        #info-panel h1 { font-size: 16px; margin-bottom: 12px; border-bottom: 3px solid #1f77b4; padding-bottom: 8px; }
+        #info-panel p { font-size: 12px; line-height: 1.8; margin-bottom: 6px; }
+        #info-panel .highlight { color: #d62728; font-weight: bold; }
+        #info-panel .param { font-family: 'Courier New', monospace; font-size: 11px; background: #f5f5f5; padding: 2px 6px; }
+        #stats { position: absolute; top: 20px; right: 20px; background: rgba(255,255,255,0.95); padding: 15px; border: 2px solid #333; z-index: 100; min-width: 200px; }
+        #stats div { margin: 6px 0; font-size: 12px; font-family: 'Courier New', monospace; font-weight: bold; }
+        #controls { position: absolute; bottom: 20px; left: 20px; background: rgba(255,255,255,0.95); padding: 15px; border: 2px solid #333; z-index: 100; }
+        button { display: block; width: 100%; margin: 6px 0; padding: 10px 15px; background: #fff; color: #333; border: 2px solid #333; cursor: pointer; font-size: 12px; font-weight: bold; transition: all 0.2s; }
+        button:hover { background: #333; color: #fff; }
+        #loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; padding: 40px; border: 3px solid #333; z-index: 1000; text-align: center; }
+        #loading h2 { color: #333; margin-bottom: 20px; }
+        .spinner { border: 4px solid #e0e0e0; border-left-color: #333; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #legend { position: absolute; bottom: 20px; right: 20px; background: rgba(255,255,255,0.95); padding: 15px; border: 2px solid #333; z-index: 100; min-width: 170px; }
+        .legend-item { display: flex; align-items: center; margin: 8px 0; font-size: 11px; font-weight: bold; }
+        .legend-color { width: 18px; height: 18px; margin-right: 10px; border: 2px solid #333; }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    <div id="loading"><h2>🔬 Loading 3D Scene...</h2><div class="spinner"></div></div>
+    <div id="info-panel">
+        <h1>Diffusive Transistor</h1>
+        <p><strong>TC-Mediated A/B Site Bridging</strong></p>
+        <p><span class="highlight">Particle</span>: R = <span class="param">3.0 × TC</span></p>
+        <p><span class="highlight">A-sites</span>: <span class="param">M = 12</span> per particle</p>
+        <p><span class="highlight">B-sites</span>: <span class="param">N chains × beads</span></p>
+        <p><span class="highlight">TC</span>: Bridges A ↔ B sites</p>
+    </div>
+    <div id="stats">
+        <div>🔵 Particles: <span id="particleCount">0</span></div>
+        <div>🎯 A-sites: <span id="aSiteCount">0</span></div>
+        <div>🟣 B-sites: <span id="bSiteCount">0</span></div>
+        <div>🔗 Chains: <span id="chainCount">0</span></div>
+        <div>⚡ FPS: <span id="fps">0</span></div>
+        <div>📊 Bridges: <span id="bridgeCount">0</span></div>
+        <div>🎯 D/D₀: <span id="diffusionRatio">1.00</span></div>
+    </div>
+    <div id="controls">
+        <button id="btn-add">➕ Add Particles</button>
+        <button id="btn-reset">🔄 Reset</button>
+        <button id="btn-pause">⏯️ Pause/Play</button>
+        <button id="btn-export">📷 Export PNG</button>
+    </div>
+    <div id="legend">
+        <div style="font-weight:bold;margin-bottom:10px;">Legend</div>
+        <div class="legend-item"><div class="legend-color" style="background:#1f77b4"></div><span>Free Particle</span></div>
+        <div class="legend-item"><div class="legend-color" style="background:#ff6b6b"></div><span>Trapped Particle</span></div>
+        <div class="legend-item"><div class="legend-color" style="background:#ffd700"></div><span>A-site</span></div>
+        <div class="legend-item"><div class="legend-color" style="background:#9467bd"></div><span>B-site</span></div>
+        <div class="legend-item"><div class="legend-color" style="background:#2ca02c"></div><span>TC Molecule</span></div>
+        <div class="legend-item"><div class="legend-color" style="background:#ff7f0e"></div><span>TC Bridge</span></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    
+    <script>
+    // Constants
+    const TC_RADIUS = 0.4;
+    const PARTICLE_RADIUS = TC_RADIUS * 3.0;
+    const A_SITE_RADIUS = 0.15;
+    const B_SITE_RADIUS = 0.2;
+    const M_SITES = 12;
+    const N_CHAINS = 8;
+    const BEADS_PER_CHAIN = 6;
+    const SPRING_CONSTANT = 0.5;
+    const ROUSE_DAMPING = 0.95;
+    const BOX_SIZE = 50;
+    const COLORS = { blue:0x1f77b4, red:0xff6b6b, green:0x2ca02c, orange:0xff7f0e, purple:0x9467bd, yellow:0xffd700, gray:0x7f7f7f };
+
+    // Global state
+    let scene, camera, renderer, controls;
+    let particles = [], tcMolecules = [], bridges = [], polymerChains = [], bSites = [];
+    let animationId, isAnimating = true, lastTime = performance.now(), frameCount = 0, fps = 0;
+
+    function randomNormal() { return Math.sqrt(-2*Math.log(Math.random()))*Math.cos(2*Math.PI*Math.random()); }
+
+    function createTextLabel(text) {
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        ctx.font = 'Bold 72px Arial';
+        ctx.fillStyle = '#000';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, 256, 90);
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+        sprite.scale.set(18, 4.5, 1);
+        return sprite;
+    }
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+        
+        camera = new THREE.OrthographicCamera(40, -40, 40, -40, 0.1, 1000);
+        camera.position.set(80, 60, 80);
+        camera.lookAt(0, 0, 0);
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        
+        // Lights
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        mainLight.position.set(100, 100, 100);
+        scene.add(mainLight);
+        
+        // Boundary
+        const boxEdges = new THREE.EdgesGeometry(new THREE.BoxGeometry(BOX_SIZE, BOX_SIZE, BOX_SIZE));
+        scene.add(new THREE.LineSegments(boxEdges, new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.4 })));
+        
+        // Source/Drain/Gate
+        createElectrode('source', -30, 0, 0, COLORS.blue, 'SOURCE');
+        createElectrode('drain', 30, 0, 0, COLORS.red, 'DRAIN');
+        createGate();
+        
+        // Network
+        createNetwork();
+        
+        // Initial objects
+        addParticles(150);
+        addTCMolecules(80);
+        
+        window.addEventListener('resize', onWindowResize);
+        document.getElementById('loading').style.display = 'none';
+        animate();
+    }
+
+    function createElectrode(name, x, y, z, color, label) {
+        const geo = new THREE.BoxGeometry(10, 15, 15);
+        const mat = new THREE.MeshPhongMaterial({ color, transparent: true, opacity: 0.5 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, y, z);
+        scene.add(mesh);
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0 }));
+        edges.position.set(x, y, z);
+        scene.add(edges);
+        const lbl = createTextLabel(label);
+        lbl.position.set(x, y + 14, z);
+        scene.add(lbl);
+    }
+
+    function createGate() {
+        const geo = new THREE.BoxGeometry(20, 5, 20);
+        const mat = new THREE.MeshPhongMaterial({ color: COLORS.orange, transparent: true, opacity: 0.5 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(0, -28, 0);
+        scene.add(mesh);
+        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0 }));
+        edges.position.set(0, -28, 0);
+        scene.add(edges);
+        const lbl = createTextLabel('GATE (TC)');
+        lbl.position.set(0, -36, 0);
+        scene.add(lbl);
+    }
+
+    function createNetwork() {
+        const springMat = new THREE.LineBasicMaterial({ color: COLORS.purple, transparent: true, opacity: 0.3 });
+        const bGeo = new THREE.SphereGeometry(B_SITE_RADIUS, 12, 12);
+        const bMat = new THREE.MeshPhongMaterial({ color: COLORS.purple });
+        
+        for (let c = 0; c < N_CHAINS; c++) {
+            const chain = { beads: [], springs: [] };
+            const sx = (Math.random()-0.5)*40, sy = (Math.random()-0.5)*40, sz = (Math.random()-0.5)*40;
+            
+            for (let b = 0; b < BEADS_PER_CHAIN; b++) {
+                const bead = new THREE.Mesh(bGeo, bMat.clone());
+                bead.position.set(sx+(Math.random()-0.5)*2, sy+(Math.random()-0.5)*2, sz+b*3+(Math.random()-0.5)*2);
+                bead.userData = { isOccupied:false, boundTC:null, velocity:new THREE.Vector3(), force:new THREE.Vector3(),
+                    prevBead: b>0?null:undefined, nextBead: b<BEADS_PER_CHAIN-1?null:undefined };
+                scene.add(bead);
+                bSites.push(bead);
+                chain.beads.push(bead);
+            }
+            
+            for (let s = 0; s < BEADS_PER_CHAIN-1; s++) {
+                const b1 = chain.beads[s], b2 = chain.beads[s+1];
+                b1.userData.nextBead = b2; b2.userData.prevBead = b1;
+                const spring = new THREE.Line(new THREE.BufferGeometry().setFromPoints([b1.position, b2.position]), springMat.clone());
+                spring.userData = { bead1: b1, bead2: b2 };
+                scene.add(spring);
+                chain.springs.push(spring);
+            }
+            polymerChains.push(chain);
+        }
+    }
+
+    function addParticles(count) {
+        const pGeo = new THREE.SphereGeometry(PARTICLE_RADIUS, 24, 24);
+        const aGeo = new THREE.SphereGeometry(A_SITE_RADIUS, 12, 12);
+        const aMat = new THREE.MeshPhongMaterial({ color: COLORS.yellow });
+        
+        for (let i = 0; i < count; i++) {
+            const mat = new THREE.MeshPhongMaterial({ color: COLORS.blue });
+            const particle = new THREE.Mesh(pGeo, mat);
+            const group = new THREE.Group();
+            group.position.set((Math.random()-0.5)*BOX_SIZE, (Math.random()-0.5)*BOX_SIZE, (Math.random()-0.5)*BOX_SIZE);
+            group.add(particle);
+            
+            const aSites = [];
+            for (let j = 0; j < M_SITES; j++) {
+                const aSite = new THREE.Mesh(aGeo, aMat.clone());
+                const theta = Math.random()*Math.PI*2, phi = Math.acos(2*Math.random()-1);
+                aSite.position.set(PARTICLE_RADIUS*Math.sin(phi)*Math.cos(theta), PARTICLE_RADIUS*Math.sin(phi)*Math.sin(theta), PARTICLE_RADIUS*Math.cos(phi));
+                aSite.userData = { isOccupied:false, boundTC:null, parentParticle: null, parentGroup: group };
+                group.add(aSite);
+                aSites.push(aSite);
+            }
+            
+            particle.userData = { velocity: new THREE.Vector3((Math.random()-0.5)*0.05, (Math.random()-0.5)*0.05, (Math.random()-0.5)*0.05),
+                angularVelocity: new THREE.Vector3((Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02),
+                rotationAxis: new THREE.Vector3(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize(),
+                isTrapped: false, bridgeCount: 0, aSites, group };
+            particle.castShadow = false;
+            scene.add(group);
+            particles.push(particle);
+        }
+        updateStats();
+    }
+
+    function addTCMolecules(count) {
+        const geo = new THREE.SphereGeometry(TC_RADIUS, 12, 12);
+        const mat = new THREE.MeshPhongMaterial({ color: COLORS.green });
+        for (let i = 0; i < count; i++) {
+            const tc = new THREE.Mesh(geo, mat.clone());
+            tc.position.set((Math.random()-0.5)*BOX_SIZE, (Math.random()-0.5)*BOX_SIZE, (Math.random()-0.5)*BOX_SIZE);
+            tc.userData = { velocity: new THREE.Vector3(Math.random()*0.05, Math.random()*0.05, Math.random()*0.05), isBridging:false, boundASite:null, boundBSite:null };
+            scene.add(tc);
+            tcMolecules.push(tc);
+        }
+    }
+
+    function createBridge(tc, aSite, bSite) {
+        const aPos = new THREE.Vector3(), bPos = new THREE.Vector3();
+        aSite.getWorldPosition(aPos);
+        bSite.getWorldPosition(bPos);
+        const tcPos = tc.position;
+        
+        const bridgeGroup = new THREE.Group();
+        const bridgeMat = new THREE.MeshPhongMaterial({ color: COLORS.orange, opacity: 0.8 });
+        
+        // A to TC
+        const distA = aPos.distanceTo(tcPos);
+        const bridgeA = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, distA, 8), bridgeMat.clone());
+        bridgeA.position.copy(new THREE.Vector3().addVectors(aPos, tcPos).multiplyScalar(0.5));
+        bridgeA.lookAt(tcPos);
+        bridgeA.rotation.x += Math.PI/2;
+        bridgeGroup.add(bridgeA);
+        
+        // TC to B
+        const distB = tcPos.distanceTo(bPos);
+        const bridgeB = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, distB, 8), bridgeMat.clone());
+        bridgeB.position.copy(new THREE.Vector3().addVectors(tcPos, bPos).multiplyScalar(0.5));
+        bridgeB.lookAt(bPos);
+        bridgeB.rotation.x += Math.PI/2;
+        bridgeGroup.add(bridgeB);
+        
+        scene.add(bridgeGroup);
+        bridges.push({ group: bridgeGroup, tc, aSite, bSite, bridgeA, bridgeB });
+        
+        tc.userData.isBridging = true;
+        tc.userData.boundASite = aSite;
+        tc.userData.boundBSite = bSite;
+        aSite.userData.isOccupied = true;
+        aSite.userData.boundTC = tc;
+        bSite.userData.isOccupied = true;
+        bSite.userData.boundTC = tc;
+        
+        const particle = aSite.userData.parentParticle || particles.find(p => p.userData.aSites.includes(aSite));
+        if (particle) {
+            particle.userData.isTrapped = true;
+            particle.userData.bridgeCount++;
+            particle.material.color.setHex(COLORS.red);
+        }
+    }
+
+    function releaseParticle(particle) {
+        particle.userData.aSites.forEach(aSite => {
+            if (aSite.userData.isOccupied && aSite.userData.boundTC) {
+                const tc = aSite.userData.boundTC;
+                const bSite = tc.userData.boundBSite;
+                tc.userData.isBridging = false;
+                tc.userData.boundASite = null;
+                tc.userData.boundBSite = null;
+                aSite.userData.isOccupied = false;
+                aSite.userData.boundTC = null;
+                if (bSite) { bSite.userData.isOccupied = false; bSite.userData.boundTC = null; }
+            }
+        });
+        
+        for (let i = bridges.length-1; i >= 0; i--) {
+            const bridge = bridges[i];
+            if (bridge.aSite.userData.parentParticle === particle || 
+                (particle.userData.aSites && particle.userData.aSites.includes(bridge.aSite))) {
+                scene.remove(bridge.group);
+                bridges.splice(i, 1);
+            }
+        }
+        
+        particle.userData.isTrapped = false;
+        particle.userData.bridgeCount = 0;
+        particle.material.color.setHex(COLORS.blue);
+    }
+
+    function animate() {
+        animationId = requestAnimationFrame(animate);
+        if (!isAnimating) return;
+        
+        frameCount++;
+        const now = performance.now();
+        if (now - lastTime >= 1000) { fps = frameCount; frameCount = 0; lastTime = now; }
+        
+        // Update particles
+        particles.forEach(particle => {
+            const group = particle.userData.group;
+            if (!particle.userData.isTrapped) {
+                group.position.add(particle.userData.velocity);
+                particle.userData.velocity.add(new THREE.Vector3(randomNormal()*0.001, randomNormal()*0.001, randomNormal()*0.001));
+                group.rotateOnWorldAxis(particle.userData.rotationAxis, particle.userData.angularVelocity.length()*0.1);
+                particle.userData.angularVelocity.add(new THREE.Vector3(randomNormal()*0.001, randomNormal()*0.001, randomNormal()*0.001));
+                if (Math.random() < 0.05) particle.userData.rotationAxis.set(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize();
+                
+                // Boundary
+                if (Math.abs(group.position.x) > BOX_SIZE/2 || Math.abs(group.position.y) > BOX_SIZE/2 || Math.abs(group.position.z) > BOX_SIZE/2) {
+                    group.position.set(
+                        group.position.x - Math.floor(group.position.x/BOX_SIZE+0.5)*BOX_SIZE,
+                        group.position.y - Math.floor(group.position.y/BOX_SIZE+0.5)*BOX_SIZE,
+                        group.position.z - Math.floor(group.position.z/BOX_SIZE+0.5)*BOX_SIZE
+                    );
+                    releaseParticle(particle);
+                }
+                
+                // Binding near gate
+                if (group.position.y < -15) {
+                    const freeTC = tcMolecules.find(tc => !tc.userData.isBridging && tc.position.y < -10);
+                    const freeBSite = bSites.find(b => !b.userData.isOccupied && b.position.distanceTo(group.position) < 15);
+                    if (freeTC && freeBSite && Math.random() < 0.002) {
+                        const freeASite = particle.userData.aSites.find(a => !a.userData.isOccupied);
+                        if (freeASite) {
+                            freeASite.userData.parentParticle = particle;
+                            createBridge(freeTC, freeASite, freeBSite);
+                        }
+                    }
+                }
+            } else {
+                if (Math.random() < 0.003) releaseParticle(particle);
+            }
+        });
+        
+        // Update network (Rouse)
+        polymerChains.forEach(chain => {
+            chain.beads.forEach(bead => {
+                if (!bead.userData.isOccupied) {
+                    bead.userData.force.set(0, 0, 0);
+                    if (bead.userData.prevBead) {
+                        const disp = new THREE.Vector3().subVectors(bead.userData.prevBead.position, bead.position);
+                        bead.userData.force.add(disp.normalize().multiplyScalar(SPRING_CONSTANT*(disp.length()-3)));
+                    }
+                    if (bead.userData.nextBead) {
+                        const disp = new THREE.Vector3().subVectors(bead.userData.nextBead.position, bead.position);
+                        bead.userData.force.add(disp.normalize().multiplyScalar(SPRING_CONSTANT*(disp.length()-3)));
+                    }
+                    bead.userData.force.add(new THREE.Vector3((Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02, (Math.random()-0.5)*0.02));
+                    bead.userData.velocity.add(bead.userData.force.multiplyScalar(0.1)).multiplyScalar(ROUSE_DAMPING);
+                    bead.position.add(bead.userData.velocity);
+                    // Boundary
+                    const limit = 25;
+                    [ 'x', 'y', 'z' ].forEach(axis => {
+                        if (Math.abs(bead.position[axis]) > limit) {
+                            bead.userData.velocity[axis] *= -0.5;
+                            bead.position[axis] = Math.sign(bead.position[axis]) * limit;
+                        }
+                    });
+                }
+            });
+            chain.springs.forEach(spring => {
+                const pos = spring.geometry.attributes.position.array;
+                pos[0] = spring.userData.bead1.position.x; pos[1] = spring.userData.bead1.position.y; pos[2] = spring.userData.bead1.position.z;
+                pos[3] = spring.userData.bead2.position.x; pos[4] = spring.userData.bead2.position.y; pos[5] = spring.userData.bead2.position.z;
+                spring.geometry.attributes.position.needsUpdate = true;
+            });
+        });
+        
+        // Update TC
+        tcMolecules.forEach(tc => {
+            if (!tc.userData.isBridging) {
+                tc.position.add(tc.userData.velocity);
+                if (Math.abs(tc.position.x) > BOX_SIZE/2 || Math.abs(tc.position.y) > BOX_SIZE/2 || Math.abs(tc.position.z) > BOX_SIZE/2) {
+                    tc.position.set(
+                        tc.position.x - Math.floor(tc.position.x/BOX_SIZE+0.5)*BOX_SIZE,
+                        tc.position.y - Math.floor(tc.position.y/BOX_SIZE+0.5)*BOX_SIZE,
+                        tc.position.z - Math.floor(tc.position.z/BOX_SIZE+0.5)*BOX_SIZE
+                    );
+                }
+            } else {
+                const aPos = new THREE.Vector3(), bPos = new THREE.Vector3();
+                tc.userData.boundASite.getWorldPosition(aPos);
+                tc.userData.boundBSite.getWorldPosition(bPos);
+                tc.position.lerpVectors(aPos, bPos, 0.7);
+            }
+        });
+        
+        // Update bridges
+        bridges.forEach(bridge => {
+            if (bridge.tc.userData.isBridging) {
+                const aPos = new THREE.Vector3();
+                bridge.aSite.getWorldPosition(aPos);
+                const midA = new THREE.Vector3().addVectors(aPos, bridge.tc.position).multiplyScalar(0.5);
+                bridge.bridgeA.position.copy(midA);
+                bridge.bridgeA.lookAt(bridge.tc.position);
+                bridge.bridgeA.rotation.x += Math.PI/2;
+                
+                const bPos = new THREE.Vector3();
+                bridge.bSite.getWorldPosition(bPos);
+                const midB = new THREE.Vector3().addVectors(bridge.tc.position, bPos).multiplyScalar(0.5);
+                bridge.bridgeB.position.copy(midB);
+                bridge.bridgeB.lookAt(bPos);
+                bridge.bridgeB.rotation.x += Math.PI/2;
+            }
+        });
+        
+        updateStats();
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
+    function updateStats() {
+        document.getElementById('particleCount').textContent = particles.length;
+        document.getElementById('aSiteCount').textContent = particles.length * M_SITES;
+        document.getElementById('bSiteCount').textContent = bSites.length;
+        document.getElementById('chainCount').textContent = polymerChains.length;
+        document.getElementById('fps').textContent = fps;
+        document.getElementById('bridgeCount').textContent = bridges.length;
+        const free = particles.filter(p => !p.userData.isTrapped).length;
+        document.getElementById('diffusionRatio').textContent = (particles.length > 0 ? free/particles.length : 1).toFixed(2);
+    }
+
+    function onWindowResize() {
+        const aspect = window.innerWidth / window.innerHeight;
+        camera.left = -40*aspect; camera.right = 40*aspect;
+        camera.top = 40; camera.bottom = -40;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function resetSimulation() {
+        particles.forEach(p => scene.remove(p.userData.group));
+        particles = [];
+        bridges.forEach(b => scene.remove(b.group));
+        bridges = [];
+        tcMolecules.forEach(tc => scene.remove(tc));
+        tcMolecules = [];
+        bSites.forEach(b => scene.remove(b));
+        polymerChains.forEach(c => c.springs.forEach(s => scene.remove(s)));
+        bSites = [];
+        polymerChains = [];
+        createNetwork();
+        addParticles(150);
+        addTCMolecules(80);
+    }
+
+    function toggleAnimation() { isAnimating = !isAnimating; }
+
+    function exportImage() {
+        renderer.render(scene, camera);
+        const link = document.createElement('a');
+        link.download = 'diffusive_transistor_' + new Date().toISOString().slice(0,10) + '.png';
+        link.href = renderer.domElement.toDataURL('image/png');
+        link.click();
+    }
+
+    // Button handlers
+    document.getElementById('btn-add').onclick = () => addParticles(50);
+    document.getElementById('btn-reset').onclick = resetSimulation;
+    document.getElementById('btn-pause').onclick = toggleAnimation;
+    document.getElementById('btn-export').onclick = exportImage;
+
+    // Start
+    init();
+    </script>
+</body>
+</html>

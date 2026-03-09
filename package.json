@@ -1,0 +1,29 @@
+{
+  "name": "diffusive-transistor-simulation",
+  "version": "1.0.0",
+  "description": "3D Diffusive Transistor Simulation - TC Bridging A/B Sites with Rouse Dynamics",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "npx http-server -p 8080 -c-1",
+    "serve": "npx serve .",
+    "start": "npx http-server -p 8080"
+  },
+  "keywords": [
+    "threejs",
+    "simulation",
+    "diffusive-transistor",
+    "brownian-motion",
+    "rouse-dynamics",
+    "polymer-network"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "serve": "^14.2.0"
+  },
+  "dependencies": {
+    "three": "^0.128.0"
+  }
+}
